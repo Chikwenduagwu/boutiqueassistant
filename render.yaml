@@ -7,4 +7,5 @@ services:
     startCommand: python main.py
     envVars:
       - key: DOBBY_API_KEY
+        value: fw_3ZYt5vRJztdY1fXajRko5YCt
         sync: false
