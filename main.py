@@ -1,80 +1,85 @@
 import os
+import logging
 import requests
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# --- CONFIG ---
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")  # Telegram bot token from BotFather
-DOBBY_API_KEY = os.getenv("DOBBY_API_KEY")    # Your Dobby API key
+# ========== CONFIG ==========
+TELEGRAM_API_KEY = "8483759902:AAGfVnL8Kp-V5AVFVve7JA3p3v7yWfizDNc"  # Your bot key (recommend env var in production)
+DOBBY_API_KEY = os.getenv("DOBBY_API_KEY")  # Fireworks AI (Dobby) API key
+DOBBY_ENDPOINT = "https://api.fireworks.ai/inference/v1/chat/completions"
 
-# --- Boutique Info (replace later with your real info) ---
+# ========== LOGGING ==========
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+
+# ========== HARDCODED BOUTIQUE INFO ==========
 BOUTIQUE_INFO = {
-    "name": "Wisdom Boutique",
-    "hours": "Mon–Sat: 9 AM – 8 PM. Closed on Sundays.",
-    "location": "123 Market Street, Lagos, Nigeria",
-    "products": "👗 Dresses, 👠 shoes, 👜 handbags, 💍 accessories, custom wears",
-    "contact": "📞 +234 800 123 4567 | ✉️ hello@wisdomboutique.com"
+    "name": "Wisdom Tech Boutique",
+    "location": "123 Tech Plaza, Lagos, Nigeria",
+    "hours": "Mon - Sat: 9am - 7pm, Sun: Closed",
+    "products": "Laptops, Desktops, Computer Accessories, Repair Services",
+    "contact": "+234 800 123 4567"
 }
 
-# --- Helper: Query Dobby AI ---
-def query_dobby(message: str) -> str:
-    headers = {"Authorization": f"Bearer {DOBBY_API_KEY}"}
+# ========== COMMANDS ==========
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Send welcome message"""
+    await update.message.reply_text(
+        f"👋 Welcome to {BOUTIQUE_INFO['name']}!\n"
+        f"We are your one-stop shop for {BOUTIQUE_INFO['products']}.\n\n"
+        f"📍 Location: {BOUTIQUE_INFO['location']}\n"
+        f"🕒 Hours: {BOUTIQUE_INFO['hours']}\n"
+        f"📞 Contact: {BOUTIQUE_INFO['contact']}\n\n"
+        "Ask me anything about our boutique!"
+    )
+
+# ========== DOBBY API CALL ==========
+def call_dobby(message: str) -> str:
+    """Send user query to Fireworks AI (Dobby) restricted to boutique info"""
+    headers = {
+        "Authorization": f"Bearer {DOBBY_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
     payload = {
-        "model": "dobby",
+        "model": "accounts/fireworks/models/dobby-1",  # Fireworks Dobby model
+        "max_tokens": 250,
+        "temperature": 0.7,
         "messages": [
-            {"role": "system", "content": f"You are a polite assistant for {BOUTIQUE_INFO['name']}. Only answer questions about the boutique's products, opening hours, location, or contact. If asked something unrelated, say: 'I can only help with information about {BOUTIQUE_INFO['name']}.'"},
+            {"role": "system", "content": "You are an assistant for Wisdom Tech Boutique, "
+                                          "a computer shop. Only answer questions about the boutique's "
+                                          "products, services, hours, and contact details. If asked anything "
+                                          "unrelated, politely say you can only answer about the boutique."},
             {"role": "user", "content": message}
         ]
     }
+
     try:
-        r = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-        return r.json()["choices"][0]["message"]["content"]
-    except Exception:
-        return "⚠️ Sorry, I'm having trouble responding right now."
+        response = requests.post(DOBBY_ENDPOINT, headers=headers, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
+    except Exception as e:
+        logging.error(f"Dobby error: {e}")
+        return "⚠️ Sorry, I'm having trouble reaching Wisdom Tech's assistant right now."
 
-# --- Handlers ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_text = (
-        f"👋 Welcome to {BOUTIQUE_INFO['name']}!\n\n"
-        f"We specialize in {BOUTIQUE_INFO['products']}.\n\n"
-        f"⏰ Hours: {BOUTIQUE_INFO['hours']}\n"
-        f"📍 Location: {BOUTIQUE_INFO['location']}\n"
-        f"📞 Contact: {BOUTIQUE_INFO['contact']}\n\n"
-        "How can I assist you today?"
-    )
-
-    keyboard = [
-        ["👜 Products", "🕒 Hours"],
-        ["📍 Location", "📞 Contact"],
-        ["💬 Ask Dobby AI"]
-    ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup)
-
+# ========== MESSAGE HANDLER ==========
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_message = update.message.text.strip()
-
-    if user_message == "👜 Products":
-        response = f"Our products include: {BOUTIQUE_INFO['products']}"
-    elif user_message == "🕒 Hours":
-        response = f"We're open: {BOUTIQUE_INFO['hours']}"
-    elif user_message == "📍 Location":
-        response = f"Our boutique is located at: {BOUTIQUE_INFO['location']}"
-    elif user_message == "📞 Contact":
-        response = f"You can reach us at: {BOUTIQUE_INFO['contact']}"
-    elif user_message == "💬 Ask Dobby AI":
-        response = "Please type your question, and Dobby will assist you!"
-    else:
-        response = query_dobby(user_message)
-
+    user_message = update.message.text
+    response = call_dobby(user_message)
     await update.message.reply_text(response)
 
-# --- Main Bot ---
+# ========== MAIN ==========
 def main():
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
+    app = Application.builder().token(TELEGRAM_API_KEY).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    logging.info("Bot started...")
     app.run_polling()
 
 if __name__ == "__main__":
