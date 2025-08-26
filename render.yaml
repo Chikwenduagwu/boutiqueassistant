@@ -3,5 +3,8 @@ services:
     name: wisdom-boutique-bot
     env: python
     plan: free
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: DOBBY_API_KEY
+        sync: false
