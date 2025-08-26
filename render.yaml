@@ -1,11 +1,12 @@
 services:
   - type: web
-    name: wisdom-boutique-bot
+    name: boutique-telegram-bot
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
     envVars:
+      - key: TELEGRAM_API_KEY
+        value: 8483759902:AAGfVnL8Kp-V5AVFVve7JA3p3v7yWfizDNc
       - key: DOBBY_API_KEY
         value: fw_3ZYt5vRJztdY1fXajRko5YCt
-        sync: false
